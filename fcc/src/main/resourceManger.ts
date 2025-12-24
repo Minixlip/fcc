@@ -86,17 +86,35 @@ export function pollResources(mainWindow: BrowserWindow) {
 
 // Keep your static data function as is
 export async function getStaticData() {
-  const [cpu, mem, osInfo, battery] = await Promise.all([
+  const [cpu, mem, osInfo, battery, graphics, diskLayout, system] = await Promise.all([
     si.cpu(),
     si.mem(),
     si.osInfo(),
-    si.battery()
+    si.battery(),
+    si.graphics(),
+    si.diskLayout(),
+    si.system()
   ])
 
+  // Format the graphics card name (usually takes the first controller)
+  const gpu =
+    graphics.controllers.length > 0
+      ? `${graphics.controllers[0].vendor} ${graphics.controllers[0].model}`
+      : 'N/A'
+
+  // Format storage (list all drives)
+  const storage = diskLayout.map((d) => `${d.name} (${d.type})`).join(', ')
+
   return {
-    cpuModel: `${cpu.manufacturer} ${cpu.brand}`,
-    os: `${osInfo.distro} ${osInfo.release}`,
-    totalMemoryGB: Math.floor(mem.total / 1024 / 1024 / 1024),
-    hasBattery: battery.hasBattery
+    cpuModel: `${cpu.manufacturer} ${cpu.brand} (${cpu.cores} Cores)`,
+    os: `${osInfo.distro} ${osInfo.release} (${osInfo.arch})`,
+    totalMemoryGB: Math.floor(mem.total / 1024 / 1024 / 1024) + ' GB',
+    battery: battery.hasBattery
+      ? `${battery.percent}% (${battery.isCharging ? 'Charging' : 'Discharging'})`
+      : 'No Battery',
+    gpuModel: gpu,
+    storageDevices: storage,
+    pcName: `${system.manufacturer} ${system.model}`,
+    hostname: osInfo.hostname
   }
 }

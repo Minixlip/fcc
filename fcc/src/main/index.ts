@@ -57,6 +57,11 @@ function createWindow(): void {
   // System Tray Logic
   createTray(mainWindow)
 
+  // get static data
+  ipcMain.handle('getStaticData', async () => {
+    return await getStaticData()
+  })
+
   // Intercept close event to hide instead of quit
   mainWindow.on('close', (event) => {
     if (!app.quit) {

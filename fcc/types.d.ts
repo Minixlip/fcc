@@ -27,6 +27,7 @@ declare global {
       getStaticData: () => Promise<StaticData>
       subscribeStatistics: (callback: (statistics: Statistics) => void) => UnsubscribeFunction
       killProcess: (pid: number) => Promise<boolean>
+      getStaticData: () => Promise<SystemSpecs>
     }
   }
 }
