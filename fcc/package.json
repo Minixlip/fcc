@@ -25,6 +25,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@tailwindcss/vite": "^4.1.18",
     "electron-updater": "^6.3.9",
+    "lucide-react": "^0.562.0",
     "os-utils": "^0.0.14",
     "recharts": "^3.6.0",
     "systeminformation": "^5.27.16",

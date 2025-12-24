@@ -1,64 +1,41 @@
-import osUtils from 'os-utils'
-import fs from 'fs'
-import os from 'os'
 import { BrowserWindow } from 'electron'
 import si from 'systeminformation'
+import { StaticData } from '../../types'
 
-const POLLING_INTERVAL = 2000 // 5 seconds
+const POLLING_INTERVAL = 1000
 
-export function pollResources(mainWindow: BrowserWindow): void {
-  setInterval(async () => {
-    const cpuUsage = await getCPUUsage()
-    const ramUsage = getRamUsage()
-    const storageData = getStorageData()
+export function pollResources(mainWindow: BrowserWindow): NodeJS.Timeout {
+  const interval = setInterval(async () => {
+    const [cpu, mem, graphics, fsSize] = await Promise.all([
+      si.currentLoad(),
+      si.mem(),
+      si.graphics(),
+      si.fsSize()
+    ])
+
+    const storageUsage = fsSize.length > 0 ? fsSize[0].use : 0
+
     mainWindow.webContents.send('statistics', {
-      cpuUsage,
-      ramUsage,
-      storageUsage: storageData.usage
+      cpuUsage: cpu.currentLoad,
+      ramUsage: mem.active / mem.total,
+      storageUsage: storageUsage / 100 // Normalize to 0-1
     })
   }, POLLING_INTERVAL)
+
+  return interval
 }
 
-function getCPUUsage(): Promise<number> {
-  return new Promise((resolve) => {
-    osUtils.cpuUsage(resolve)
-  })
-}
-
-function getRamUsage(): number {
-  return 1 - osUtils.freememPercentage()
-}
-
-function getStorageData(): { total: number; usage: number } {
-  const stats = fs.statfsSync(process.platform === 'win32' ? 'C://' : '/')
-  const total = stats.bsize * stats.blocks
-  const free = stats.bsize * stats.bfree
+export async function getStaticData(): Promise<StaticData> {
+  const [cpu, mem, osInfo, battery] = await Promise.all([
+    si.cpu(),
+    si.mem(),
+    si.osInfo(),
+    si.battery()
+  ])
 
   return {
-    total: Math.floor(total / 1_000_000_000),
-    usage: 1 - free / total
-  }
-}
-
-export function getStaticData(): StaticData {
-  const totalStorage = getStorageData().total
-  const cpuModel = os.cpus()[0].model
-  const totalMemoryGB = Math.floor(osUtils.totalmem() / 1024)
-
-  return {
-    totalStorage,
-    cpuModel,
-    totalMemoryGB
-  }
-}
-
-export async function getAllInfo(): Promise<MachineInfo> {
-  const [cpu, osInfo, battery] = await Promise.all([si.cpu(), si.osInfo(), si.battery()])
-
-  return {
-    cpuModel: `${cpu.manufacturer} ${cpu.brand} ${cpu.efficiencyCores ? cpu.efficiencyCores : 0 + cpu.performanceCores ? cpu.performanceCores : 0} Threads`,
-    os: `${osInfo.distro} ${osInfo.release} (${osInfo.arch}) ${osInfo.hostname} PC`,
-    hasBattery: battery.hasBattery,
-    cpuSpeedGHz: cpu.speed.toFixed(2)
+    cpuModel: `${cpu.manufacturer} ${cpu.brand}`,
+    os: `${osInfo.distro} ${osInfo.release}`,
+    totalMemoryGB: Math.floor(mem.total / 1024 / 1024 / 1024)
   }
 }

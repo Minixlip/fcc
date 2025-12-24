@@ -1,15 +1,45 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, nativeImage, Menu, Tray } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { getAllInfo, getStaticData, pollResources } from './resourceManger'
+import { getStaticData, pollResources } from './resourceManger'
+
+let tray: Tray | null = null
+
+function createTray(window: BrowserWindow): void {
+  const iconPath = join(__dirname, '../../resources/icon.png')
+  const trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
+
+  tray = new Tray(trayIcon)
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show App',
+      click: () => {
+        window.show()
+      }
+    },
+    {
+      label: 'Quit',
+      click: () => {
+        app.quit()
+      }
+    }
+  ])
+  tray.setToolTip('System Monitor')
+  tray.setContextMenu(contextMenu)
+
+  tray.on('click', () => {
+    window.isVisible() ? window.hide() : window.show()
+  })
+}
 
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: 1000,
+    height: 700,
     show: false,
+    frame: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -18,15 +48,22 @@ function createWindow(): void {
     }
   })
 
-  pollResources(mainWindow)
+  // Start polling
+  const interval = pollResources(mainWindow)
+  mainWindow.on('closed', () => clearInterval(interval))
 
-  handleGetStaticData(() => {
-    return getStaticData()
+  // System Tray Logic
+  createTray(mainWindow)
+
+  // Intercept close event to hide instead of quit
+  mainWindow.on('close', (event) => {
+    if (!app.quit) {
+      event.preventDefault()
+      mainWindow?.hide()
+    }
   })
 
-  handleGetAllInfo(() => {
-    return getAllInfo()
-  })
+  ipcMain.handle('getStaticData', () => getStaticData())
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
@@ -44,14 +81,6 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
-}
-
-function handleGetStaticData(callback: () => StaticData): void {
-  ipcMain.handle('getStaticData', callback)
-}
-
-function handleGetAllInfo(callback: () => Promise<MachineInfo>): void {
-  ipcMain.handle('getAllInfo', callback)
 }
 
 // This method will be called when Electron has finished

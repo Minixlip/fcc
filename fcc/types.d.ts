@@ -1,26 +1,25 @@
-type Statistics = {
+export type Statistics = {
   cpuUsage: number
   ramUsage: number
   storageUsage: number
 }
 
-type StaticData = {
-  totalStorage: number
+export type StaticData = {
+  totalStorage?: number
   cpuModel: string
   totalMemoryGB: number
+  os: string
 }
 
-interface Window {
-  api: {
-    getStaticData: () => Promise<StaticData>
-    subscribeStatistics: (callback: (statistics: Statistics) => void) => void
-    getAllInfo: () => Promise<MachineInfo>
+export type View = 'CPU' | 'RAM' | 'STORAGE' | 'DASHBOARD'
+
+declare global {
+  interface Window {
+    api: {
+      getStaticData: () => Promise<StaticData>
+      subscribeStatistics: (callback: (statistics: Statistics) => void) => UnsubscribeFunction
+    }
   }
 }
 
-type MachineInfo = {
-  cpuModel: string
-  os: string
-  hasBattery: boolean
-  cpuSpeedGHz: string
-}
+export type UnsubscribeFunction = () => void
