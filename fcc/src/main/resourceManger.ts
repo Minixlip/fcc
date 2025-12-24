@@ -1,31 +1,70 @@
 import { BrowserWindow } from 'electron'
 import si from 'systeminformation'
-import { StaticData } from '../../types'
 
-const POLLING_INTERVAL = 1000
+const FAST_POLL_INTERVAL = 2000 // Increased to 2s for better stability
+const SLOW_POLL_INTERVAL = 60000
 
-export function pollResources(mainWindow: BrowserWindow): NodeJS.Timeout {
-  const interval = setInterval(async () => {
-    const [cpu, mem, graphics, fsSize] = await Promise.all([
-      si.currentLoad(),
-      si.mem(),
-      si.graphics(),
-      si.fsSize()
-    ])
+export function pollResources(mainWindow: BrowserWindow) {
+  if (!mainWindow || mainWindow.isDestroyed()) return
 
-    const storageUsage = fsSize.length > 0 ? fsSize[0].use : 0
+  let latestStorageUsage = 0
 
-    mainWindow.webContents.send('statistics', {
-      cpuUsage: cpu.currentLoad,
-      ramUsage: mem.active / mem.total,
-      storageUsage: storageUsage / 100 // Normalize to 0-1
-    })
-  }, POLLING_INTERVAL)
+  // 1. Slow Poll (Storage)
+  const updateStorage = async () => {
+    try {
+      const fsSize = await si.fsSize()
+      const primaryDrive = fsSize.length > 0 ? fsSize[0] : null
+      if (primaryDrive) latestStorageUsage = primaryDrive.use / 100
+    } catch (error) {
+      console.error(error)
+    }
+  }
 
-  return interval
+  updateStorage()
+  const slowInterval = setInterval(updateStorage, SLOW_POLL_INTERVAL)
+
+  // 2. Fast Poll (CPU, RAM, Processes)
+  let isRunning = true
+  const runFastPoll = async () => {
+    if (!isRunning || mainWindow.isDestroyed()) return
+
+    try {
+      const [cpu, mem, processes] = await Promise.all([si.currentLoad(), si.mem(), si.processes()])
+
+      // Sort by CPU usage and take top 10
+      const topProcesses = processes.list
+        .sort((a, b) => b.cpu - a.cpu)
+        .slice(0, 10)
+        .map((p) => ({
+          pid: p.pid,
+          name: p.name,
+          cpu: p.cpu,
+          memory: p.mem // This is usually % usage
+        }))
+
+      mainWindow.webContents.send('statistics', {
+        cpuUsage: cpu.currentLoad,
+        ramUsage: mem.active / mem.total,
+        storageUsage: latestStorageUsage,
+        topProcesses // <--- Send the new data
+      })
+    } catch (error) {
+      console.error(error)
+    }
+
+    if (isRunning) setTimeout(runFastPoll, FAST_POLL_INTERVAL)
+  }
+
+  runFastPoll()
+
+  return () => {
+    isRunning = false
+    clearInterval(slowInterval)
+  }
 }
 
-export async function getStaticData(): Promise<StaticData> {
+// Keep your static data function as is
+export async function getStaticData() {
   const [cpu, mem, osInfo, battery] = await Promise.all([
     si.cpu(),
     si.mem(),
@@ -36,6 +75,7 @@ export async function getStaticData(): Promise<StaticData> {
   return {
     cpuModel: `${cpu.manufacturer} ${cpu.brand}`,
     os: `${osInfo.distro} ${osInfo.release}`,
-    totalMemoryGB: Math.floor(mem.total / 1024 / 1024 / 1024)
+    totalMemoryGB: Math.floor(mem.total / 1024 / 1024 / 1024),
+    hasBattery: battery.hasBattery
   }
 }

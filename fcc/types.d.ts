@@ -1,7 +1,15 @@
+export type AppProcess = {
+  pid: number
+  name: string
+  cpu: number
+  memory: number
+}
+
 export type Statistics = {
   cpuUsage: number
   ramUsage: number
   storageUsage: number
+  topProcesses: AppProcess[]
 }
 
 export type StaticData = {
@@ -18,6 +26,7 @@ declare global {
     api: {
       getStaticData: () => Promise<StaticData>
       subscribeStatistics: (callback: (statistics: Statistics) => void) => UnsubscribeFunction
+      killProcess: (pid: number) => Promise<boolean>
     }
   }
 }

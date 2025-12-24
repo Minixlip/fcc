@@ -39,7 +39,7 @@ function createWindow(): void {
     width: 1000,
     height: 700,
     show: false,
-    frame: false,
+    frame: true,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -48,9 +48,11 @@ function createWindow(): void {
     }
   })
 
-  // Start polling
-  const interval = pollResources(mainWindow)
-  mainWindow.on('closed', () => clearInterval(interval))
+  // Start polling and get the stop function
+  const stopPolling = pollResources(mainWindow)
+  mainWindow.on('closed', () => {
+    stopPolling?.() // Call the cleanup function safely
+  })
 
   // System Tray Logic
   createTray(mainWindow)
@@ -64,6 +66,16 @@ function createWindow(): void {
   })
 
   ipcMain.handle('getStaticData', () => getStaticData())
+
+  ipcMain.handle('killProcess', (_event, pid) => {
+    try {
+      process.kill(pid) // Node.js built-in function to kill a process
+      return true
+    } catch (e) {
+      console.error(e)
+      return false
+    }
+  })
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()

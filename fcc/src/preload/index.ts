@@ -6,7 +6,8 @@ const api = {
     const listener = (_event, stats): void => callback(stats)
     ipcRenderer.on('statistics', listener)
     return () => ipcRenderer.off('statistics', listener)
-  }
+  },
+  killProcess: (pid: number) => ipcRenderer.invoke('killProcess', pid)
 }
 
 if (process.contextIsolated) {

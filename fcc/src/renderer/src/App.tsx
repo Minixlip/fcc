@@ -10,21 +10,22 @@ import {
 } from 'recharts'
 import { Activity, Disc, Cpu, Server, LayoutGrid } from 'lucide-react'
 
-// Import your new components
+// Components
 import { StatCard } from './components/StatCard'
 import { SidebarItem } from './components/SidebarItem'
+
+// Types
 import { Statistics, View } from 'types'
+import { ProcessTable } from './components/ProcessTable'
 
 function App() {
-  const [activeView, setActiveView] = useState<View>('CPU') // Default to CPU or DASHBOARD
+  const [activeView, setActiveView] = useState<View>('DASHBOARD')
   const [stats, setStats] = useState<Statistics | null>(null)
   const [cpuHistory, setCpuHistory] = useState<{ time: number; value: number }[]>([])
 
   useEffect(() => {
     const unsubscribe = window.api.subscribeStatistics((newStats) => {
       setStats(newStats)
-
-      // Update Chart History
       setCpuHistory((prev) => {
         const newData = { time: Date.now(), value: Math.round(newStats.cpuUsage) }
         const newHistory = [...prev, newData]
@@ -47,7 +48,6 @@ function App() {
         </div>
 
         <nav className="space-y-2 flex-1">
-          {/* We pass the activeView state and the setter function down to the buttons */}
           <SidebarItem
             view="DASHBOARD"
             activeView={activeView}
@@ -76,7 +76,7 @@ function App() {
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
+      {/* MAIN CONTENT */}
       <main className="flex-1 p-8 overflow-y-auto">
         <header className="flex justify-between items-center mb-8">
           <div>
@@ -85,12 +85,8 @@ function App() {
           </div>
         </header>
 
-        {/* CONDITIONAL RENDERING BASED ON ACTIVE VIEW */}
-
-        {/* VIEW: DASHBOARD (Shows everything) */}
         {activeView === 'DASHBOARD' && (
           <div className="space-y-6">
-            {/* 3 Columns of cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard
                 title="CPU Usage"
@@ -112,37 +108,45 @@ function App() {
               />
             </div>
 
-            {/* Big Chart */}
-            <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-lg h-96">
+            {/* Big Chart - FIXED LAYOUT */}
+            <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-lg h-96 flex flex-col">
               <h3 className="text-gray-400 font-medium mb-6">CPU History</h3>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={cpuHistory}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                  <XAxis dataKey="time" hide />
-                  <YAxis domain={[0, 100]} stroke="#9CA3AF" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#111827',
-                      borderColor: '#374151',
-                      borderRadius: '8px'
-                    }}
-                    itemStyle={{ color: '#60A5FA' }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#3B82F6"
-                    strokeWidth={3}
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <div className="flex-1 min-h-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={cpuHistory} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+                    <XAxis dataKey="time" hide />
+                    <YAxis
+                      domain={[0, 100]}
+                      stroke="#9CA3AF"
+                      tick={{ fontSize: 12 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#111827',
+                        borderColor: '#374151',
+                        borderRadius: '8px'
+                      }}
+                      itemStyle={{ color: '#60A5FA' }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#3B82F6"
+                      strokeWidth={3}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         )}
 
-        {/* VIEW: CPU (Shows just CPU details) */}
+        {/* ... Other views (CPU, STORAGE) remain the same ... */}
         {activeView === 'CPU' && (
           <div className="flex flex-col gap-6">
             <StatCard
@@ -151,11 +155,10 @@ function App() {
               color="bg-blue-500"
               icon={Cpu}
             />
-            {/* You can duplicate the chart here if you want it in this view too */}
+            <ProcessTable processes={stats?.topProcesses ?? []} />
           </div>
         )}
 
-        {/* VIEW: STORAGE */}
         {activeView === 'STORAGE' && (
           <StatCard
             title="Storage Usage"
