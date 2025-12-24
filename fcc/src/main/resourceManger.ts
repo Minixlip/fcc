@@ -1,15 +1,28 @@
 import { BrowserWindow } from 'electron'
 import si from 'systeminformation'
 
-const FAST_POLL_INTERVAL = 2000 // Increased to 2s for better stability
+const FAST_POLL_INTERVAL = 2000
 const SLOW_POLL_INTERVAL = 60000
+
+// 1. Define terms to hide
+const EXCLUDED_TERMS = [
+  'system',
+  'electron',
+  'node',
+  'svchost',
+  'service',
+  'runtime',
+  'host',
+  'registry',
+  'idle'
+]
 
 export function pollResources(mainWindow: BrowserWindow) {
   if (!mainWindow || mainWindow.isDestroyed()) return
 
   let latestStorageUsage = 0
 
-  // 1. Slow Poll (Storage)
+  // --- Slow Poll (Storage) ---
   const updateStorage = async () => {
     try {
       const fsSize = await si.fsSize()
@@ -23,7 +36,7 @@ export function pollResources(mainWindow: BrowserWindow) {
   updateStorage()
   const slowInterval = setInterval(updateStorage, SLOW_POLL_INTERVAL)
 
-  // 2. Fast Poll (CPU, RAM, Processes)
+  // --- Fast Poll (CPU, RAM, Processes) ---
   let isRunning = true
   const runFastPoll = async () => {
     if (!isRunning || mainWindow.isDestroyed()) return
@@ -31,22 +44,30 @@ export function pollResources(mainWindow: BrowserWindow) {
     try {
       const [cpu, mem, processes] = await Promise.all([si.currentLoad(), si.mem(), si.processes()])
 
-      // Sort by CPU usage and take top 10
+      // 2. Filter -> Sort -> Slice -> Map
       const topProcesses = processes.list
-        .sort((a, b) => b.cpu - a.cpu)
-        .slice(0, 10)
+        .filter((p) => {
+          // Remove 0% CPU processes
+          if (p.cpu <= 0) return false
+
+          // Remove excluded names
+          const name = p.name.toLowerCase()
+          return !EXCLUDED_TERMS.some((term) => name.includes(term))
+        })
+        .sort((a, b) => b.cpu - a.cpu) // Highest CPU first
+        .slice(0, 10) // Take top 10
         .map((p) => ({
           pid: p.pid,
           name: p.name,
           cpu: p.cpu,
-          memory: p.mem // This is usually % usage
+          memory: p.mem
         }))
 
       mainWindow.webContents.send('statistics', {
         cpuUsage: cpu.currentLoad,
         ramUsage: mem.active / mem.total,
         storageUsage: latestStorageUsage,
-        topProcesses // <--- Send the new data
+        topProcesses
       })
     } catch (error) {
       console.error(error)
